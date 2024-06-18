@@ -6,22 +6,25 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
-from langchain.llms import HuggingFaceHub
+from langchain_community.llms import HuggingFaceHub
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chains import ConversationalRetrievalChain
-from langchain.embeddings import SentenceTransformerEmbeddings
+from langchain_community.embeddings import SentenceTransformerEmbeddings
 
 app = Flask(__name__)
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
+# Attempt to load the PDF document
 try:
-    loader = PyPDFLoader("IITM BS Degree Programme - Student Handbook - Latest.pdf")
+    loader = PyPDFLoader("handbook.pdf")
     documents = loader.load()
 except Exception as e:
     logging.error(f"Error loading documents: {e}")
     documents = []
+
+# Split the documents into chunks
 text_splitter = CharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
 texts = text_splitter.split_documents(documents)
 
@@ -53,7 +56,6 @@ def get_answer():
     query = data.get("query", "")
 
     if query:
-        # Replace with your actual function to get the answer
         result = qa_chain({"question": query, "chat_history": []})
         answer = result.get("answer", "No answer found")
         marker = "Helpful Answer:"
@@ -62,7 +64,7 @@ def get_answer():
         start_pos = answer.find(marker)
 
         # Check if the marker is found
-        if (start_pos != -1):
+        if start_pos != -1:
             # Extract the text after the marker
             answer = answer[start_pos + len(marker):].strip()
         else:
