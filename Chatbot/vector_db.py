@@ -1,18 +1,27 @@
 from flask import Flask, request, jsonify, render_template
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
+from langchain.llms import HuggingFaceHub
 from langchain.chains.question_answering import load_qa_chain
-from langchain_community.llms import HuggingFaceHub
+import json
+import logging
 
 # Initialize Flask app
 app = Flask(__name__)
 
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+
 # Load documents
-loader = PyPDFLoader(r'C:\Users\Harsh Singh\Downloads\Chatbot\data\IITM BS Degree Programme - Student Handbook - Latest.pdf')
-documents = loader.load()
+try:
+    loader = PyPDFLoader('IITM BS Degree Programme - Student Handbook - Latest.pdf')
+    documents = loader.load()
+except Exception as e:
+    logging.error(f"Error loading documents: {e}")
+    documents = []
 
 # Split the documents into smaller chunks
 text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
@@ -21,6 +30,7 @@ texts = text_splitter.split_documents(documents)
 # Load embeddings
 embeddings = HuggingFaceEmbeddings()
 db = Chroma.from_documents(texts, embeddings)
+print(db)
 
 # Create retriever
 retriever = db.as_retriever(search_kwargs={'k': 2})
@@ -36,9 +46,9 @@ llm = HuggingFaceHub(
 # Attempt to load QA chain with error handling
 try:
     qa_chain = load_qa_chain(llm, retriever)
-except TypeError as e:
-    print(f"Error: {e}")
-    # Handle error gracefully or provide additional debugging information
+except Exception as e:
+    logging.error(f"Error initializing QA chain: {e}")
+    qa_chain = None
 
 class QueryRequest(BaseModel):
     query: str
@@ -52,15 +62,24 @@ def index():
 
 @app.route("/query", methods=["POST"])
 def get_answer():
-    data = request.json
-    query_request = QueryRequest(**data)
+    if qa_chain is None:
+        return jsonify({'error': 'QA chain is not properly initialized'}), 500
+
+    try:
+        data = json.loads(request.data)
+        query_request = QueryRequest(**data)
+    except (json.JSONDecodeError, ValidationError) as e:
+        return jsonify({'error': 'Invalid input', 'details': str(e)}), 400
+
     query = query_request.query
-
-    result = qa_chain({'question': query, 'chat_history': []})
-    answer = result['answer']
-
-    response = QueryResponse(answer=answer)
-    return jsonify(response.dict())
+    try:
+        result = qa_chain({'question': query, 'chat_history': []})
+        answer = result['answer']
+        response = QueryResponse(answer=answer)
+        return jsonify(response.dict())
+    except Exception as e:
+        logging.error(f"Error during question answering: {e}")
+        return jsonify({'error': 'An error occurred during question answering', 'details': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)

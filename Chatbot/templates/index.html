@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IITM BS Chatbot</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .container {
+            background: #fff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        header {
+            margin-bottom: 20px;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2.2em;
+            color: #007BFF;
+        }
+        .description {
+            margin-bottom: 30px;
+            font-size: 1em;
+            color: #555;
+        }
+        .chatbot h2 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .chatbot form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chatbot input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+        .chatbot button {
+            background-color: #007BFF;
+            color: #fff;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+        .chatbot button:hover {
+            background-color: #0056b3;
+        }
+        #answer {
+            margin-top: 20px;
+            font-size: 1em;
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        footer {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>IITM BS Chatbot</h1>
+        </header>
+        <div class="description">
+            <p>Welcome to the IITM BS Chatbot. Ask any questions about the IITM Bachelor of Science program, admissions, curriculum, and more.</p>
+        </div>
+        <div class="chatbot">
+            <h2>Ask a Question</h2>
+            <form id="queryForm">
+                <input type="text" id="query" name="query" placeholder="Type your question here">
+                <button type="submit">Ask</button>
+            </form>
+            <div id="answer"></div>
+        </div>
+        <footer>
+            <p>&copy; 2024 IITM BS Program. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        document.getElementById("queryForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const query = formData.get("query");
+
+            fetch("/query", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const answerDiv = document.getElementById("answer");
+                answerDiv.style.display = 'block';
+                answerDiv.innerHTML = `<p><strong>Answer:</strong> ${data.answer}</p>`;
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                const answerDiv = document.getElementById("answer");
+                answerDiv.style.display = 'block';
+                answerDiv.innerHTML = "<p>An error occurred. Please try again.</p>";
+            });
+        });
+    </script>
+</body>
+</html>
