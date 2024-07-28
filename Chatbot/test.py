@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from functools import lru_cache
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -17,7 +18,6 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Length, ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
-from functools import lru_cache
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
