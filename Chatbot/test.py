@@ -3,7 +3,14 @@ import json
 import logging
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    login_required,
+    logout_user,
+    current_user,
+)
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf import FlaskForm
@@ -21,40 +28,45 @@ from langchain_community.embeddings import SentenceTransformerEmbeddings
 
 # Load environment variables
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
-HUGGINGFACEHUB_API_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN", "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")
+HUGGINGFACEHUB_API_TOKEN = os.getenv(
+    "HUGGINGFACEHUB_API_TOKEN", "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"
+)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = SECRET_KEY
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///./test.db'
+app.config["SECRET_KEY"] = SECRET_KEY
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///./test.db"
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = "login"
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # Rate Limiter
 limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["200 per day", "50 per hour"]
+    get_remote_address, app=app, default_limits=["200 per day", "50 per hour"]
 )
+
 
 # Database models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
-    chats = db.relationship('ChatHistory', backref='user', lazy=True)
+    chats = db.relationship("ChatHistory", backref="user", lazy=True)
+
 
 class ChatHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     query = db.Column(db.String(200), nullable=False)
     response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+
 
 # Create the database and tables within the application context
 with app.app_context():
@@ -89,46 +101,93 @@ qa_chain = ConversationalRetrievalChain.from_llm(
     llm, retriever, return_source_documents=True
 )
 
+
 @lru_cache(maxsize=1000)
 def get_cached_answer(query):
+    """
+    Retrieve the answer to a given query using the QA chain and cache the result.
+
+    Args:
+        query (str): The query to retrieve the answer for.
+
+    Returns:
+        str: The answer to the query.
+    """
     result = qa_chain({"question": query, "chat_history": []})
     answer = result.get("answer", "No answer found")
     return answer
 
+
 @login_manager.user_loader
 def load_user(user_id):
+    """
+    Load a user from the database by user ID.
+
+    Args:
+        user_id (int): The ID of the user to load.
+
+    Returns:
+        User: The loaded user object.
+    """
     return User.query.get(int(user_id))
 
+
 class RegistrationForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=150)])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=8)])
-    submit = SubmitField('Register')
+    username = StringField(
+        "Username", validators=[DataRequired(), Length(min=4, max=150)]
+    )
+    password = PasswordField("Password", validators=[DataRequired(), Length(min=8)])
+    submit = SubmitField("Register")
 
     def validate_username(self, username):
+        """
+        Validate that the username is unique.
+
+        Args:
+            username (wtforms.fields.StringField): The username field to validate.
+
+        Raises:
+            ValidationError: If the username already exists.
+        """
         user = User.query.filter_by(username=username.data).first()
         if user:
-            raise ValidationError('Username already exists.')
+            raise ValidationError("Username already exists.")
+
 
 class LoginForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired()])
-    password = PasswordField('Password', validators=[DataRequired()])
-    submit = SubmitField('Login')
+    username = StringField("Username", validators=[DataRequired()])
+    password = PasswordField("Password", validators=[DataRequired()])
+    submit = SubmitField("Login")
 
-@app.route('/register', methods=['GET', 'POST'])
+
+@app.route("/register", methods=["GET", "POST"])
 def register():
+    """
+    Handle user registration.
+
+    Returns:
+        str: The rendered registration template or a redirect to the login page on successful registration.
+    """
     form = RegistrationForm()
     if form.validate_on_submit():
         username = form.username.data
         password = form.password.data
-        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+        hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
         new_user = User(username=username, password=hashed_password)
         db.session.add(new_user)
         db.session.commit()
-        return redirect(url_for('login'))
-    return render_template('register.html', form=form)
+        return redirect(url_for("login"))
+    return render_template("register.html", form=form)
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
+    """
+    Handle user login.
+
+    Returns:
+        str: The rendered login template or a redirect to the home page on successful login.
+    """
     form = LoginForm()
     if form.validate_on_submit():
         username = form.username.data
@@ -136,26 +195,45 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
             login_user(user)
-            return redirect(url_for('home'))
+            return redirect(url_for("home"))
         else:
-            return 'Invalid credentials'
-    return render_template('login.html', form=form)
+            return "Invalid credentials"
+    return render_template("login.html", form=form)
 
-@app.route('/logout')
+@app.route("/logout")
 @login_required
 def logout():
+    """
+    Handle user logout.
+
+    Returns:
+        str: A redirect to the login page.
+    """
     logout_user()
-    return redirect(url_for('login'))
+    return redirect(url_for("login"))
 
 @app.route("/")
 @login_required
 def home():
+    """
+    Render the home page for logged-in users.
+
+    Returns:
+        str: The rendered home page template.
+    """
     return render_template("index.html", username=current_user.username)
+
 
 @app.route("/query", methods=["POST"])
 @login_required
 @limiter.limit("10 per minute")
 def get_answer():
+    """
+    Handle a query from the user, retrieve the answer using the QA chain, and store the chat history in the database.
+
+    Returns:
+        Response: A JSON response containing the answer to the query.
+    """
     logger.info("Received query request")
     try:
         data = json.loads(request.data.decode("utf-8"))
@@ -170,9 +248,11 @@ def get_answer():
                 answer = answer[start_pos + len(marker):].strip()
             else:
                 answer = "Marker not found"
-            
+
             # Store the query and response in the database
-            chat_history = ChatHistory(user_id=current_user.id, query=query, response=answer)
+            chat_history = ChatHistory(
+                user_id=current_user.id, query=query, response=answer
+            )
             db.session.add(chat_history)
             db.session.commit()
             db.session.refresh(chat_history)
@@ -187,6 +267,7 @@ def get_answer():
     except Exception as e:
         logger.error(f"Error processing query: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
