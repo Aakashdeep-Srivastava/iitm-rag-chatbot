@@ -28,9 +28,7 @@ from langchain_community.embeddings import SentenceTransformerEmbeddings
 
 # Load environment variables
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
-HUGGINGFACEHUB_API_TOKEN = os.getenv(
-    "HUGGINGFACEHUB_API_TOKEN", "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"
-)
+HUGGINGFACEHUB_API_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN", "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")
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = SECRET_KEY
@@ -41,16 +39,11 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 
 # Configure logging
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Rate Limiter
-limiter = Limiter(
-    get_remote_address, app=app, default_limits=["200 per day", "50 per hour"]
-)
-
+limiter = Limiter(get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
 
 # Database models
 class User(UserMixin, db.Model):
@@ -59,14 +52,12 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(150), nullable=False)
     chats = db.relationship("ChatHistory", backref="user", lazy=True)
 
-
 class ChatHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     query = db.Column(db.String(200), nullable=False)
     response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
-
 
 # Create the database and tables within the application context
 with app.app_context():
@@ -101,7 +92,6 @@ qa_chain = ConversationalRetrievalChain.from_llm(
     llm, retriever, return_source_documents=True
 )
 
-
 @lru_cache(maxsize=1000)
 def get_cached_answer(query):
     """
@@ -113,10 +103,13 @@ def get_cached_answer(query):
     Returns:
         str: The answer to the query.
     """
-    result = qa_chain({"question": query, "chat_history": []})
-    answer = result.get("answer", "No answer found")
-    return answer
-
+    try:
+        result = qa_chain({"question": query, "chat_history": []})
+        answer = result.get("answer", "No answer found")
+        return answer
+    except Exception as e:
+        logger.error(f"Error retrieving answer: {e}")
+        return "Error retrieving answer"
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -130,7 +123,6 @@ def load_user(user_id):
         User: The loaded user object.
     """
     return User.query.get(int(user_id))
-
 
 class RegistrationForm(FlaskForm):
     username = StringField(
@@ -153,12 +145,10 @@ class RegistrationForm(FlaskForm):
         if user:
             raise ValidationError("Username already exists.")
 
-
 class LoginForm(FlaskForm):
     username = StringField("Username", validators=[DataRequired()])
     password = PasswordField("Password", validators=[DataRequired()])
     submit = SubmitField("Login")
-
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -178,7 +168,6 @@ def register():
         db.session.commit()
         return redirect(url_for("login"))
     return render_template("register.html", form=form)
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -223,7 +212,6 @@ def home():
     """
     return render_template("index.html", username=current_user.username)
 
-
 @app.route("/query", methods=["POST"])
 @login_required
 @limiter.limit("10 per minute")
@@ -244,7 +232,7 @@ def get_answer():
             answer = get_cached_answer(query)
             marker = "Helpful Answer:"
             start_pos = answer.find(marker)
-            if (start_pos != -1):
+            if start_pos != -1:
                 answer = answer[start_pos + len(marker):].strip()
             else:
                 answer = "Marker not found"
@@ -267,7 +255,6 @@ def get_answer():
     except Exception as e:
         logger.error(f"Error processing query: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
