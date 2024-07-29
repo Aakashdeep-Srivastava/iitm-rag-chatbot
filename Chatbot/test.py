@@ -18,6 +18,8 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Length, ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
+from langdetect import detect, DetectorFactory
+from googletrans import Translator
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
@@ -91,6 +93,18 @@ llm = HuggingFaceHub(
 qa_chain = ConversationalRetrievalChain.from_llm(
     llm, retriever, return_source_documents=True
 )
+
+# Initialize the translator
+translator = Translator()
+DetectorFactory.seed = 0  # Ensures consistent language detection
+
+def translate_text(text, target_lang="en"):
+    try:
+        translation = translator.translate(text, dest=target_lang)
+        return translation.text
+    except Exception as e:
+        logger.error(f"Error translating text: {e}")
+        return text
 
 @lru_cache(maxsize=1000)
 def get_cached_answer(query):
@@ -229,7 +243,20 @@ def get_answer():
 
         query = data.get("query", "")
         if query:
+            # Detect the language of the query
+            lang = detect(query)
+            logger.info(f"Detected language: {lang}")
+
+            # Translate the query to English if it's not in English
+            if lang != "en":
+                query = translate_text(query, target_lang="en")
+
             answer = get_cached_answer(query)
+
+            # Optionally translate the answer back to the original language
+            if lang != "en":
+                answer = translate_text(answer, target_lang=lang)
+
             marker = "Helpful Answer:"
             start_pos = answer.find(marker)
             if start_pos != -1:
