@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import re
 from functools import lru_cache
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
@@ -99,6 +100,16 @@ translator = Translator()
 DetectorFactory.seed = 0  # Ensures consistent language detection
 
 def translate_text(text, target_lang="en"):
+    """
+    Translate text to the target language using Google Translate.
+
+    Args:
+        text (str): The text to translate.
+        target_lang (str): The target language code (e.g., "en" for English).
+
+    Returns:
+        str: The translated text.
+    """
     try:
         translation = translator.translate(text, dest=target_lang)
         return translation.text
@@ -106,24 +117,60 @@ def translate_text(text, target_lang="en"):
         logger.error(f"Error translating text: {e}")
         return text
 
+def make_links_clickable(text):
+    """
+    Converts URLs in the text to HTML anchor tags.
+
+    Args:
+        text (str): The text containing URLs.
+
+    Returns:
+        str: The text with URLs converted to clickable links.
+    """
+    url_pattern = re.compile(r'(https?://\S+)')
+    return url_pattern.sub(r'<a href="\1" target="_blank">\1</a>', text)
+
+def format_answer(answer):
+    """
+    Format the answer with rich text and clickable links.
+
+    Args:
+        answer (str): The raw answer text.
+
+    Returns:
+        str: The formatted answer with rich text and clickable links.
+    """
+    # Make links clickable
+    answer = make_links_clickable(answer)
+    
+    # Example of adding bold text (if applicable)
+    answer = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', answer)  # Bold text
+    answer = re.sub(r'\*(.*?)\*', r'<i>\1</i>', answer)      # Italics text
+    
+    # Example of adding bullet points (if applicable)
+    answer = re.sub(r'\n- (.*?)(?=\n|$)', r'<ul><li>\1</li></ul>', answer)
+    
+    return answer
+
 @lru_cache(maxsize=1000)
 def get_cached_answer(query):
     """
-    Retrieve the answer to a given query using the QA chain and cache the result.
+    Retrieve and format the answer to a given query using the QA chain and cache the result.
 
     Args:
         query (str): The query to retrieve the answer for.
 
     Returns:
-        str: The answer to the query.
+        str: The formatted answer to the query.
     """
     try:
         result = qa_chain({"question": query, "chat_history": []})
         answer = result.get("answer", "No answer found")
-        return answer
+        formatted_answer = format_answer(answer)
+        return formatted_answer
     except Exception as e:
         logger.error(f"Error retrieving answer: {e}")
-        return "Error retrieving answer"
+        return "<p>Error retrieving answer. Please try again later.</p>"
 
 @login_manager.user_loader
 def load_user(user_id):
