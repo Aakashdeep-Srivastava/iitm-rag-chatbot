@@ -89,6 +89,11 @@
             border: 1px solid #d0d0d0;
             position: relative;
         }
+        .chat-message.error .message {
+            background-color: #ffdddd;
+            color: #d8000c;
+            border: 1px solid #d8000c;
+        }
         .message {
             padding: 12px 18px;
             max-width: 80%;
@@ -214,6 +219,7 @@
             if (query) {
                 addMessage('user', query);
                 queryInput.value = '';
+                const loadingMessageId = addLoadingMessage();
 
                 fetch("/query", {
                     method: "POST",
@@ -222,21 +228,32 @@
                     },
                     body: JSON.stringify({ query })
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Network response was not ok.");
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    removeLoadingMessage(loadingMessageId);
                     addMessage('bot', data.answer);
                 })
                 .catch(error => {
                     console.error("Error:", error);
-                    addMessage('bot', "An error occurred. Please try again.");
+                    removeLoadingMessage(loadingMessageId);
+                    addMessage('bot', "An error occurred. Please try again.", 'error');
                 });
             }
         });
 
-        function addMessage(sender, text) {
+        function addMessage(sender, text, type) {
             const chatHistory = document.getElementById("chatHistory");
             const messageDiv = document.createElement("div");
             messageDiv.classList.add("chat-message", sender);
+
+            if (type === 'error') {
+                messageDiv.classList.add("error");
+            }
 
             const messageText = document.createElement("div");
             messageText.classList.add("message");
@@ -245,6 +262,30 @@
             messageDiv.appendChild(messageText);
             chatHistory.appendChild(messageDiv);
             chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function addLoadingMessage() {
+            const chatHistory = document.getElementById("chatHistory");
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("chat-message", 'bot');
+            messageDiv.id = "loadingMessage"; // Unique ID for the loading message
+
+            const messageText = document.createElement("div");
+            messageText.classList.add("message");
+            messageText.textContent = "Processing...";
+
+            messageDiv.appendChild(messageText);
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            return messageDiv.id; // Return ID for removal later
+        }
+
+        function removeLoadingMessage(messageId) {
+            const loadingMessage = document.getElementById(messageId);
+            if (loadingMessage) {
+                loadingMessage.remove();
+            }
         }
     </script>
 </body>
